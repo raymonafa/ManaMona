@@ -5,83 +5,120 @@
   import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
   import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
   import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
-
   import { PixelShader } from '$lib/shaders/PixelShader.js';
   import { RGBShiftShader } from '$lib/shaders/RGBShiftShader.js';
   import { NoiseGrainShader } from '$lib/shaders/NoiseGrainShader.js';
-
   import gsap from 'gsap';
 
   let canvas;
-  let model;
+  let currentModel;
+  let scene, camera, renderer, composer;
 
-  onMount(() => {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const modelPaths = [
+    '/models/modelA.glb',
+    '/models/modelB.glb'
+  ];
+  let modelIndex = 0;
+
+  function loadModel(path) {
+    return new Promise((resolve, reject) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        
+        path,
+        (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0, 0, 0);
+          model.position.set(0, 0, 0);
+          model.traverse((child) => {
+            if (child.isMesh) child.userData.interactive = true;
+          });
+          resolve(model);
+        },
+        undefined,
+        reject
+      );
+    });
+  }
+
+  async function switchModel() {
+    if (!scene || !currentModel) return;
+
+    gsap.to(currentModel.scale, {
+      x: 0,
+      y: 0,
+      z: 0,
+      duration: 0.4,
+      ease: 'power2.in',
+      onComplete: async () => {
+        scene.remove(currentModel);
+
+        modelIndex = (modelIndex + 1) % modelPaths.length;
+        const newModel = await loadModel(modelPaths[modelIndex]);
+        newModel.scale.set(0, 0, 0);
+        scene.add(newModel);
+        currentModel = newModel;
+
+        gsap.to(currentModel.scale, {
+          x: 0.25,
+          y: 0.25,
+          z: 0.25,
+          duration: 0.5,
+          ease: 'power2.out',
+        });
+      }
+    });
+  }
+
+  onMount(async () => {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 2;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setClearColor(0xe7e7e7, 0.1); // Background color
+    renderer.setClearColor(0x000000, 0);
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    const pointLight = new THREE.PointLight(0xffffff, 1);
-    pointLight.position.set(5, 5, 5);
-    scene.add(ambientLight, pointLight);
+    // Light dari kamera
+    const directional = new THREE.DirectionalLight(0xffffff, 0);
+    directional.position.copy(camera.position);
+    scene.add(directional);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-    // Load model
-    const loader = new GLTFLoader();
-    loader.load(
-      '/models/model.glb',
-      (gltf) => {
-        model = gltf.scene;
-        model.scale.set(0.35, 0.35, 0.35);
-        model.position.set(0, 0, 0);
-        model.traverse((child) => {
-          if (child.isMesh) child.userData.interactive = true;
-        });
-        scene.add(model);
-      },
-      undefined,
-      (error) => console.error('Error loading model:', error)
-    );
+    // Load initial model
+    currentModel = await loadModel(modelPaths[modelIndex]);
+    scene.add(currentModel);
 
-    // === Postprocessing ===
-    const composer = new EffectComposer(renderer);
+    // Postprocessing
+    composer = new EffectComposer(renderer);
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
 
-    // Pixel Shader
     const pixelPass = new ShaderPass(PixelShader);
     pixelPass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
     pixelPass.enabled = false;
     composer.addPass(pixelPass);
 
-    // RGB Shift Shader
     const rgbShiftPass = new ShaderPass(RGBShiftShader);
     rgbShiftPass.uniforms.amount.value = 0.0015;
     rgbShiftPass.enabled = false;
     composer.addPass(rgbShiftPass);
 
-    // Noise / Grain Shader (always on)
     const grainPass = new ShaderPass(NoiseGrainShader);
     grainPass.uniforms.amount.value = 0.04;
     composer.addPass(grainPass);
 
-    // Mouse interaksi
+    // Mouse hover interaksi
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
     window.addEventListener('mousemove', (event) => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      mouse.x = (event.clientX / w) * 2 - 1;
-      mouse.y = -(event.clientY / h) * 2 + 1;
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-      if (model) {
-        gsap.to(model.rotation, {
+      if (currentModel) {
+        gsap.to(currentModel.rotation, {
           y: mouse.x * 0.8,
           x: mouse.y * 0.1,
           duration: 1.6,
@@ -97,14 +134,24 @@
       }
     });
 
-    // Animate
+    // text3D
+    const text = document.querySelector('.hero-text');
+
+    window.addEventListener('mousemove', (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 2;
+      const y = (e.clientY / window.innerHeight - 0.5) * 2;
+
+      text.style.transform = `translate(-50%, -50%) rotateX(${y * 10}deg) rotateY(${x * 10}deg)`;
+});
+
+    // Animation loop
     const clock = new THREE.Clock();
     function animate() {
       requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
 
-      if (model) {
-        model.position.y = -0.9 + Math.sin(elapsed * 2) * 0.01;
+      if (currentModel) {
+        currentModel.position.y = -0.9 + Math.sin(elapsed * 2) * 0.01;
       }
 
       grainPass.uniforms.time.value = elapsed;
@@ -113,19 +160,24 @@
 
     animate();
 
-    // Resize
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
       composer.setSize(window.innerWidth, window.innerHeight);
-
       pixelPass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
     });
+
+    setInterval(switchModel, 4000);
   });
 </script>
 
 <canvas bind:this={canvas}></canvas>
+
+<!-- Tambahan teks hero 2D -->
+<div class="hero-text">
+  TECH CRAFTER
+</div>
 
 <style>
   canvas {
@@ -135,6 +187,22 @@
     top: 0;
     left: 0;
     display: block;
-    z-index: 0;
+    z-index: 1;
   }
+
+  .hero-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    font-size: 10vw;
+    transform: translate(-50%, -50%);
+    color: rgb(0, 0, 0);
+    opacity: 0.08;
+    pointer-events: none;
+    z-index: -1;
+    text-align: center;
+
+    transform-style: preserve-3d;
+    will-change: transform;
+}
 </style>
