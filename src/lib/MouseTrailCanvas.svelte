@@ -1,11 +1,11 @@
 <script>
   import { onMount } from 'svelte';
 
-  export let gridSize = 56;
-  export let pixelSize = gridSize; // otomatis sama
+  export let gridSize = 80;
+  export let pixelSize = gridSize;
   export let color = 'rgb(211, 251, 67)';
-  export let trailInterval = 60;
-  export let maxLifetime = 100;
+  export let trailInterval = 16; // lebih cepat (60fps)
+  export let maxLifetime = 60; // frame life (60 frame ≈ 1 detik)
 
   let canvas;
   let ctx;
@@ -13,7 +13,11 @@
   let lastTrailTime = 0;
 
   function offset() {
-    return Math.random() * 2 - 1; // glitch kecil (±1px)
+    return Math.random() * 2 - 1;
+  }
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
   }
 
   onMount(() => {
@@ -52,10 +56,17 @@
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       p.life += 1;
-      const alpha = 1 - p.life / maxLifetime;
+      const t = p.life / maxLifetime;
+      const alpha = easeOutCubic(1 - t);
+      const scale = 1 - 0 * t; // dari scale 1 ke 0.6
 
-      ctx.fillStyle = color.replace('ALPHA', alpha.toFixed(2));
-      ctx.fillRect(p.x - pixelSize / 2, p.y - pixelSize / 2, pixelSize, pixelSize);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      ctx.fillRect(-pixelSize / 2, -pixelSize / 2, pixelSize, pixelSize);
+      ctx.restore();
     }
 
     while (particles.length > 0 && particles[0].life > maxLifetime) {

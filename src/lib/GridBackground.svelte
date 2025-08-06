@@ -1,5 +1,5 @@
 <script>
-    export let gridSize = 56;
+    export let gridSize = 80;
     export let color = 'rgba(0, 0, 0, 1)'; // Bisa diganti jadi putih untuk dark mode
   </script>
   
@@ -20,7 +20,7 @@
     }
   
     :global(:root) {
-      --grid-size: 56px;
+      --grid-size: 80px;
       --grid-color: rgba(3, 3, 3, 0.05)/* default grid color */
     }
   </style>

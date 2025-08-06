@@ -14,21 +14,16 @@
   let currentModel;
   let scene, camera, renderer, composer;
 
-  const modelPaths = [
-    '/models/modelA.glb',
-    '/models/modelB.glb'
-  ];
-  let modelIndex = 0;
+  const modelPath = '/models/modelB.glb'; // Hanya satu model
 
   function loadModel(path) {
     return new Promise((resolve, reject) => {
       const loader = new GLTFLoader();
       loader.load(
-        
         path,
         (gltf) => {
           const model = gltf.scene;
-          model.scale.set(0, 0, 0);
+          model.scale.set(0.25, 0.25, 0.25);
           model.position.set(0, 0, 0);
           model.traverse((child) => {
             if (child.isMesh) child.userData.interactive = true;
@@ -38,35 +33,6 @@
         undefined,
         reject
       );
-    });
-  }
-
-  async function switchModel() {
-    if (!scene || !currentModel) return;
-
-    gsap.to(currentModel.scale, {
-      x: 0,
-      y: 0,
-      z: 0,
-      duration: 0.4,
-      ease: 'power2.in',
-      onComplete: async () => {
-        scene.remove(currentModel);
-
-        modelIndex = (modelIndex + 1) % modelPaths.length;
-        const newModel = await loadModel(modelPaths[modelIndex]);
-        newModel.scale.set(0, 0, 0);
-        scene.add(newModel);
-        currentModel = newModel;
-
-        gsap.to(currentModel.scale, {
-          x: 0.25,
-          y: 0.25,
-          z: 0.25,
-          duration: 0.5,
-          ease: 'power2.out',
-        });
-      }
     });
   }
 
@@ -80,14 +46,14 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setClearColor(0x000000, 0);
 
-    // Light dari kamera
-    const directional = new THREE.DirectionalLight(0xffffff, 0);
+    // Light dari arah kamera
+    const directional = new THREE.DirectionalLight(0xffffff, 1);
     directional.position.copy(camera.position);
     scene.add(directional);
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-    // Load initial model
-    currentModel = await loadModel(modelPaths[modelIndex]);
+    // Load model tunggal
+    currentModel = await loadModel(modelPath);
     scene.add(currentModel);
 
     // Postprocessing
@@ -109,7 +75,7 @@
     grainPass.uniforms.amount.value = 0.04;
     composer.addPass(grainPass);
 
-    // Mouse hover interaksi
+    // Mouse interaction
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -134,17 +100,15 @@
       }
     });
 
-    // text3D
+    // 2D Text rotation
     const text = document.querySelector('.hero-text');
-
     window.addEventListener('mousemove', (e) => {
       const x = (e.clientX / window.innerWidth - 0.5) * 2;
       const y = (e.clientY / window.innerHeight - 0.5) * 2;
-
       text.style.transform = `translate(-50%, -50%) rotateX(${y * 10}deg) rotateY(${x * 10}deg)`;
-});
+    });
 
-    // Animation loop
+    // Animate
     const clock = new THREE.Clock();
     function animate() {
       requestAnimationFrame(animate);
@@ -167,17 +131,12 @@
       composer.setSize(window.innerWidth, window.innerHeight);
       pixelPass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
     });
-
-    setInterval(switchModel, 4000);
   });
 </script>
 
 <canvas bind:this={canvas}></canvas>
 
-<!-- Tambahan teks hero 2D -->
-<div class="hero-text">
-  TECH CRAFTER
-</div>
+<!-- <div class="hero-text">TECH CRAFTER</div> -->
 
 <style>
   canvas {
@@ -196,7 +155,7 @@
     left: 50%;
     font-size: 10vw;
     transform: translate(-50%, -50%);
-    color: rgb(0, 0, 0);
+    color: #000;
     opacity: 0.08;
     pointer-events: none;
     z-index: -1;
@@ -204,5 +163,5 @@
 
     transform-style: preserve-3d;
     will-change: transform;
-}
+  }
 </style>
